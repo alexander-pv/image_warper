@@ -1,0 +1,10 @@
+opencv-python==4.5.5.64
+numpy== 1.22.3
+scipy==1.8.0
+Emojipedia==0.4.1
+six==1.16.0
+requests==2.27.1
+bs4==0.0.1
+uvicorn==0.17.6
+fastapi==0.75.1
+pytest==7.1.1
