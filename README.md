@@ -11,4 +11,9 @@ $ docker run --rm -it --name image_warper image_warper:latest bash
 $ export | grep -i display ; declare -x DISPLAY=":0" ; export DISPLAY=:0
 $ cd backend; python main.py -cas -cps -show
 
+# Start server
+$ python ./src/backend/serve_warper.py 
+# Start Streamlit
+$ streamlit run ./src/front/app.py 
+
 ```
