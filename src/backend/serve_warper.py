@@ -1,9 +1,8 @@
-import os
 import sys
 
 import uvicorn
 from fastapi import FastAPI
-from fastapi import File, UploadFile
+from fastapi import UploadFile
 from fastapi.responses import StreamingResponse
 
 import core
@@ -17,14 +16,6 @@ emoji_parser = img_loader.EmojipediaParser()
 @app.get("/")
 async def read_root() -> dict:
     return {'response': 200}
-
-
-@app.post("/warp_test/{method}")
-async def warp_test(method: str) -> StreamingResponse:
-    img_path = os.path.join(os.getcwd(), 'src', 'tests', 'pics')
-    method = method if method in ('cps', 'cas') else 'cas'
-    wrapped_buf = core.dry_run(img_path, method, True)
-    return StreamingResponse(content=wrapped_buf, media_type="image/png")
 
 
 @app.post("/fetch_random_img")
