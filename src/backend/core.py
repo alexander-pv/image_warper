@@ -192,7 +192,7 @@ class ImgTransformer:
         return warped_img
 
 
-def dry_run(img_path: str, method: str = 'cps', decode: bool = False) -> np.ndarray or io.BytesIO:
+def dry_run(img_path: str, method: str = 'cps', encode: bool = False) -> np.ndarray or io.BytesIO:
     transformer = ImgTransformer()
     primary_image = cv2.imread(os.path.join(img_path, 'bulb.png'), cv2.IMREAD_UNCHANGED)
     secondary_image = cv2.imread(os.path.join(img_path, 'fox.png'), cv2.IMREAD_UNCHANGED)
@@ -203,8 +203,8 @@ def dry_run(img_path: str, method: str = 'cps', decode: bool = False) -> np.ndar
     else:
         raise ValueError(f'Unknown warping method: {method}')
 
-    if decode:
-        io_buf = decode_img(output)
+    if encode:
+        io_buf = encode_img(output)
         return io_buf
     else:
         return output
@@ -313,14 +313,24 @@ def warp(img1: np.ndarray, img2: np.ndarray, pts1: np.ndarray, pts2: np.ndarray)
     return img2
 
 
-def decode_img(img: np.ndarray) -> io.BytesIO:
+def encode_img(img: np.ndarray) -> io.BytesIO:
     """
     :param img:
     :return:
     """
-    is_success, buffer = cv2.imencode(".jpg", img)
+    is_success, buffer = cv2.imencode(".png", img)
     io_buf = io.BytesIO(buffer)
     return io_buf
+
+
+def decode_img(buf: bytes) -> np.ndarray:
+    """
+    :param buf:
+    :return:
+    """
+    array = np.frombuffer(buf, np.uint8)
+    img = cv2.imdecode(array, cv2.IMREAD_UNCHANGED)
+    return img
 
 
 def show_img(img: np.ndarray, name: str, destroy: bool = False) -> None:

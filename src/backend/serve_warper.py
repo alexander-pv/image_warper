@@ -3,6 +3,7 @@ import sys
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi import File, UploadFile
 from fastapi.responses import StreamingResponse
 
 import core
@@ -21,21 +22,31 @@ async def read_root() -> dict:
 @app.post("/warp_test/{method}")
 async def warp_test(method: str) -> StreamingResponse:
     img_path = os.path.join(os.getcwd(), 'src', 'tests', 'pics')
+    method = method if method in ('cps', 'cas') else 'cas'
     wrapped_buf = core.dry_run(img_path, method, True)
-    return StreamingResponse(wrapped_buf, media_type="image/jpeg")
+    return StreamingResponse(content=wrapped_buf, media_type="image/png")
 
 
-@app.post("/warp_random_emoji/{method}")
-async def warp_random(method: str) -> StreamingResponse or dict:
-    img0 = emoji_parser.fetch_random()
-    img1 = emoji_parser.fetch_random()
+@app.post("/fetch_random_img")
+async def fetch_random_img() -> StreamingResponse:
+    img = emoji_parser.fetch_random()
+    io_buf = core.encode_img(img)
+    return StreamingResponse(content=io_buf, media_type="image/png")
+
+
+@app.post("/warp_imgs/{method}")
+async def warp_imgs(method: str, file1: UploadFile, file2: UploadFile) -> StreamingResponse or dict:
+    image_bytes1 = await file1.read()
+    image_bytes2 = await file2.read()
+    img1 = core.decode_img(image_bytes1)
+    img2 = core.decode_img(image_bytes2)
     method = method if method in ('cps', 'cas') else 'cas'
     if method == 'cps':
-        warped = transformer.contour_points_sampling(img0, img1)
+        warped = transformer.contour_points_sampling(img1, img2)
     elif method == 'cas':
-        warped = transformer.contour_areas_stratification(img0, img1)
-    buf = core.decode_img(warped)
-    return StreamingResponse(buf, media_type="image/jpeg")
+        warped = transformer.contour_areas_stratification(img1, img2)
+    io_buf = core.encode_img(warped)
+    return StreamingResponse(content=io_buf, media_type="image/png")
 
 
 def main() -> None:

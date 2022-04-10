@@ -22,7 +22,7 @@ class EmojipediaParser:
         """
         req = urllib.request.urlopen(url)
         array = np.asarray(bytearray(req.read()), dtype=np.uint8)
-        return cv2.imdecode(array, cv2.IMREAD_COLOR)
+        return cv2.imdecode(array, cv2.IMREAD_UNCHANGED)
 
     def _fetch_emoji_urls(self, name: str) -> list:
         """
