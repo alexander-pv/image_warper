@@ -1,4 +1,5 @@
 import argparse
+import logging
 import os
 import sys
 
@@ -28,7 +29,7 @@ def main() -> None:
     transformer = core.ImgTransformer(verbose=args.v)
 
     if args.random:
-        parser = EmojipediaParser()
+        parser = EmojipediaParser(caching=True, cache_limit=10, img_size=120, verbose=args.v, loglevel=logging.DEBUG)
         for i in range(args.random_tries):
             primary_image = parser.fetch_random()
             secondary_image = parser.fetch_random()
@@ -47,6 +48,7 @@ def main() -> None:
                 if args.show:
                     core.show_img(warped_cas, f'warped_cas_{i}')
             cv2.destroyAllWindows()
+        parser.destroy()
     else:
         bulb_img = cv2.imread(os.path.join('..', 'tests', 'pics', 'bulb.png'), cv2.IMREAD_UNCHANGED)
         fox_img = cv2.imread(os.path.join('..', 'tests', 'pics', 'fox.png'), cv2.IMREAD_UNCHANGED)

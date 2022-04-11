@@ -1,9 +1,12 @@
 import dataclasses
 import io
+import logging
+import multiprocessing as mp
 import os
 
 import cv2
 import numpy as np
+from joblib import Parallel, delayed
 from scipy.optimize import linear_sum_assignment as lsa
 from scipy.spatial import distance_matrix as dist_measure
 
@@ -23,13 +26,18 @@ class ContourArea:
 
 class ImgTransformer:
 
-    def __init__(self, verbose: bool = False):
+    def __init__(self, loglevel: int = logging.DEBUG, verbose: bool = False):
         """
         :param verbose:
         """
         self.verbose = verbose
+        self.loglevel = loglevel
+        self.cpu_num = mp.cpu_count() - 1
         self.white_color = (255, 255, 255)
         self.bbox_sides = ('top', 'bottom', 'left', 'right')
+        logging.basicConfig(level=self.loglevel,
+                            format='%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s',
+                            datefmt='%Y-%m-%d %H:%M:%S')
 
     @staticmethod
     def _lsa_contour_sort(contour1: np.ndarray, contour2: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -145,7 +153,7 @@ class ImgTransformer:
         return areas
 
     def contour_points_sampling(self, primary_img: np.ndarray,
-                                secondary_img: np.ndarray, sample_size: int = 150) -> np.ndarray:
+                                secondary_img: np.ndarray, sample_size: int = 100) -> np.ndarray:
         """
         Transform image shape into a contour with following steps:
             1. Get images of the equal size
@@ -160,15 +168,19 @@ class ImgTransformer:
         :param sample_size:
         :return:
         """
+        logging.debug('Running CPS')
         primary_img = cv2.resize(primary_img, secondary_img.shape[:2])
+        logging.debug('Resize primary image')
         contour1 = self._extract_sampled_contour_points(primary_img, sample_size)
         contour2 = self._extract_sampled_contour_points(secondary_img, sample_size)
         contour1, contour2 = self._lsa_contour_sort(contour1, contour2)
-        warped_img = warp(secondary_img, primary_img, contour2, contour1)
+        logging.debug('Done contours')
+        warped_img = warp_threaded(secondary_img, primary_img, contour2, contour1, self.cpu_num)
+        logging.debug('Done warping')
         return warped_img
 
     def contour_areas_stratification(self, primary_img: np.ndarray,
-                                     secondary_img: np.ndarray, sample_size: int = 150) -> np.ndarray:
+                                     secondary_img: np.ndarray, sample_size: int = 100) -> np.ndarray:
         """
         Transform image shape into a contour with following steps:
             1. Get images of the equal size
@@ -184,11 +196,15 @@ class ImgTransformer:
         :param sample_size:
         :return:
         """
+        logging.debug('Running CAS')
         primary_img = cv2.resize(primary_img, secondary_img.shape[:2])
+        logging.debug('Resize primary image')
         area1 = self._extract_sampled_contour_areas(primary_img, sample_size)
         area2 = self._extract_sampled_contour_areas(secondary_img, sample_size)
         contour1, contour2 = self._combine_contour_areas(area1), self._combine_contour_areas(area2)
-        warped_img = warp(secondary_img, primary_img, contour2, contour1)
+        logging.debug('Done contours')
+        warped_img = warp_threaded(secondary_img, primary_img, contour2, contour1, self.cpu_num)
+        logging.debug('Done warping')
         return warped_img
 
 
@@ -310,6 +326,32 @@ def warp(img1: np.ndarray, img2: np.ndarray, pts1: np.ndarray, pts2: np.ndarray)
         cv2.fillConvexPoly(mask, np.int32(triangle2), (1, 1, 1), 16, 0)
         img2_cropped *= 1 - mask
         img2_cropped += img2_warped * mask
+    return img2
+
+
+def warp_threaded(img1: np.ndarray, img2: np.ndarray, pts1: np.ndarray, pts2: np.ndarray, threads: int) -> np.ndarray:
+    """
+    :param img1:
+    :param img2:
+    :param pts1:
+    :param pts2:
+    :param threads:
+    :return:
+    """
+    img2 = img2.copy()
+
+    def warp_iter(idx):
+        img1_cropped, triangle1 = crop(img1, pts1[idx])
+        img2_cropped, triangle2 = crop(img2, pts2[idx])
+        transform = cv2.getAffineTransform(np.float32(triangle1), np.float32(triangle2))
+        img2_warped = cv2.warpAffine(img1_cropped, transform, img2_cropped.shape[:2][::-1],
+                                     None, cv2.INTER_LINEAR, cv2.BORDER_REFLECT_101)
+        mask = np.zeros_like(img2_cropped)
+        cv2.fillConvexPoly(mask, np.int32(triangle2), (1, 1, 1), 16, 0)
+        img2_cropped *= 1 - mask
+        img2_cropped += img2_warped * mask
+
+    _ = Parallel(n_jobs=threads, prefer="threads")(delayed(warp_iter)(i) for i in triangles(pts1))
     return img2
 
 
