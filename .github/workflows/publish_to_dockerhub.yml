@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Demo of images warping'
+        description: 'Insert demo version'
         required: true
 
 jobs:
