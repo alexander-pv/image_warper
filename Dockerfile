@@ -6,9 +6,11 @@ RUN apt-get update && \
     apt-get autoremove
 
 WORKDIR /app
-COPY src /app
+COPY src /app/src
+COPY run_demo.sh /app
 COPY requirements.txt ./requirements.txt
 RUN pip install -r requirements.txt
 EXPOSE 8501
 
 ENTRYPOINT ["/bin/bash"]
+CMD ["./run_demo.sh"]
