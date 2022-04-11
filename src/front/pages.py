@@ -1,4 +1,5 @@
 import io
+import logging
 from abc import abstractmethod, ABCMeta
 
 import cv2
@@ -10,7 +11,7 @@ from fastapi import Response
 
 
 class ImgPage(metaclass=ABCMeta):
-    def __init__(self, title: str):
+    def __init__(self, title: str, loglevel: int = logging.DEBUG):
         """
         Abstract class for streamlit pages
         :param title:         str, page title
@@ -18,6 +19,11 @@ class ImgPage(metaclass=ABCMeta):
         self.backend = 'localhost'
         self.title = title
         self.display_width = 300
+        self.timeout = 100
+        self.loglevel = loglevel
+        logging.basicConfig(level=self.loglevel,
+                            format='%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s',
+                            datefmt='%Y-%m-%d %H:%M:%S')
 
     def set_title(self) -> None:
         """
@@ -35,6 +41,7 @@ class ImgPage(metaclass=ABCMeta):
         img = cv2.imdecode(array, cv2.IMREAD_UNCHANGED)
         if img_format == 'bgra':
             img = cv2.cvtColor(img, cv2.COLOR_BGRA2RGBA)
+        logging.debug('Done read_img_content')
         return img
 
     @staticmethod
@@ -71,37 +78,47 @@ class ImgPage(metaclass=ABCMeta):
                                     "file1": (f"file1.png;type=image/png", self.img_to_bytes(img1)),
                                     "file2": (f"file2.png;type=image/png", self.img_to_bytes(img2)),
 
-                                    })
+                                    }, timeout=self.timeout)
 
 
 class TestImgPage(ImgPage):
 
     def __init__(self, backend: str, *args, **kwargs):
         """
-        Streamlit page with images
+        Streamlit page with test images
         :param backend:
         :param args:
         :param kwargs:
         """
         super().__init__(*args, **kwargs)
         self.backend = backend
-        self.display_width = 300
+
+        self.bulb = None
+        self.fox = None
+        self.img1 = None
+        self.img2 = None
 
     def write(self) -> None:
         self.set_title()
         st.write("Inputs: ")
-        bulb = np.array(Image.open(io.BytesIO(requests.get("https://i.stack.imgur.com/kyB2q.png").content)))
-        fox = np.array(Image.open(io.BytesIO(requests.get("https://i.stack.imgur.com/so8PX.png").content)))
-        self.display_img([bulb, fox], ['bulb', 'fox'])
+        if not self.bulb:
+            self.bulb = np.array(Image.open(io.BytesIO(requests.get("https://i.stack.imgur.com/kyB2q.png").content)))
+        if not self.fox:
+            self.fox = np.array(Image.open(io.BytesIO(requests.get("https://i.stack.imgur.com/so8PX.png").content)))
+        self.display_img([self.bulb, self.fox], ['bulb', 'fox'])
 
-        res1 = self.post_warp(bulb, fox, method='cps')
-        img1 = self.read_img_content(res1.content, 'rgba')
-        res2 = self.post_warp(bulb, fox, method='cas')
-        img2 = self.read_img_content(res2.content, 'rgba')
+        if not self.img1:
+            # with st.spinner(text="contour_points_sampling..."):
+            res1 = self.post_warp(self.bulb, self.fox, method='cps')
+            self.img1 = self.read_img_content(res1.content, 'rgba')
+        if not self.img2:
+            # with st.spinner(text="contour_areas_stratification..."):
+            res2 = self.post_warp(self.bulb, self.fox, method='cas')
+            self.img2 = self.read_img_content(res2.content, 'rgba')
 
         st.write("Outputs: ")
-        self.display_img([img1, img2], ['Method: contour_points_sampling (cps)',
-                                        'Method: contour_areas_stratification (cas)'])
+        self.display_img([self.img1, self.img2], ['Method: contour_points_sampling (cps)',
+                                                  'Method: contour_areas_stratification (cas)'])
         self.hide_style()
 
 
@@ -109,7 +126,7 @@ class RandomImgPage(ImgPage):
 
     def __init__(self, backend: str, *args, **kwargs):
         """
-        Streamlit page with images
+        Streamlit page with random images
         :param backend:
         :param args:
         :param kwargs:
@@ -136,10 +153,10 @@ class RandomImgPage(ImgPage):
 
             with st.spinner(text="contour_points_sampling..."):
                 wrap_res1 = self.post_warp(img1, img2, 'cps')
-                warped1 = self.read_img_content(wrap_res1.content, 'rgba')
+            warped1 = self.read_img_content(wrap_res1.content, 'rgba')
             with st.spinner(text="contour_areas_stratification..."):
                 wrap_res2 = self.post_warp(img1, img2, 'cas')
-                warped2 = self.read_img_content(wrap_res2.content, 'rgba').copy()
+            warped2 = self.read_img_content(wrap_res2.content, 'rgba')
             st.write("Outputs: ")
             self.display_img([warped1, warped2], ['Method: contour_points_sampling (cps)',
                                                   'Method: contour_areas_stratification (cas)'])
