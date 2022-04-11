@@ -23,7 +23,7 @@ jobs:
         env:
             DOCKER_USER: ${{ secrets.DOCKERHUB_USERNAME }}
             APP_VERSION: ${{ github.event.inputs.version }}
-        run: docker build -f ./dockerfiles/linux.Dockerfile -t $DOCKER_USER/eurygaster_app:latest -t $DOCKER_USER/eurygaster_app:$APP_VERSION .
+        run: docker build -t $DOCKER_USER/image_warper:latest -t $DOCKER_USER/image_warper:$APP_VERSION .
 
       - name: Push docker image
         env:
