@@ -1,13 +1,14 @@
 import streamlit as st
 
-from pages import TestImgPage, RandomImgPage
+from pages import TestImgPage, RandomImgPage, SelectImgPage
 
 
 def main() -> None:
     backend_address = 'localhost:10000'
     pages = {
         'Test': TestImgPage(title='Test image', backend=backend_address),
-        'Random image': RandomImgPage(title='Random image', backend=backend_address),
+        'Random images': RandomImgPage(title='Random images', backend=backend_address),
+        'Select images': SelectImgPage(title='Select images', backend=backend_address)
     }
 
     st.sidebar.title("Navigation")

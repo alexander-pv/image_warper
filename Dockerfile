@@ -12,5 +12,4 @@ COPY requirements.txt ./requirements.txt
 RUN pip install -r requirements.txt
 EXPOSE 8501
 
-ENTRYPOINT ["/bin/bash"]
-CMD ["./run_demo.sh"]
+ENTRYPOINT ["/bin/bash", "./run_demo.sh"]
