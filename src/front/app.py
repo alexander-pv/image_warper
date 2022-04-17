@@ -1,19 +1,21 @@
 import streamlit as st
 
-from pages import TestImgPage, RandomImgPage, SelectImgPage
+import pages as st_page
 
 
 def main() -> None:
-    backend_address = 'localhost:10000'
-    pages = {
-        'Test': TestImgPage(title='Test image', backend=backend_address),
-        'Random images': RandomImgPage(title='Random images', backend=backend_address),
-        'Select images': SelectImgPage(title='Select images', backend=backend_address)
+    pages_dict = {
+        'Test': st_page.TestImgPage(title='Test image'),
+        'Random pair': st_page.RandomImgPage(title='Random images'),
+        'Select pair': st_page.SelectImgPage(title='Select images'),
+        'Test three images': st_page.TestThreeImgPage(title='Test three images input'),
+        'Select three images': st_page.SelectThreeImgPage(title='Test three images input'),
+        'Style transfer': st_page.StyleTransferPage(title='Test three images input')
     }
 
     st.sidebar.title("Navigation")
-    selection = st.sidebar.radio("Sections", list(pages.keys()))
-    selected_page = pages[selection]
+    selection = st.sidebar.radio("Sections", list(pages_dict.keys()))
+    selected_page = pages_dict[selection]
 
     with st.spinner(f"Loading {selection} ..."):
         selected_page.write()

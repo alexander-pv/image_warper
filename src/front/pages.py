@@ -2,12 +2,15 @@ import io
 import logging
 from abc import abstractmethod, ABCMeta
 
+import os
 import cv2
 import numpy as np
 import requests
 import streamlit as st
 from PIL import Image
 from fastapi import Response
+
+from itertools import permutations
 
 
 class ImgPage(metaclass=ABCMeta):
@@ -16,11 +19,13 @@ class ImgPage(metaclass=ABCMeta):
         Abstract class for streamlit pages
         :param title:         str, page title
         """
-        self.backend = 'localhost'
+        self.core_backend = 'localhost:10000'
+        self.style_backend = 'localhost:15000'
         self.title = title
         self.display_width = 300
-        self.timeout = 100
+        self.timeout = 999999
         self.loglevel = loglevel
+        self.root = os.path.dirname(os.path.abspath(__file__))
         logging.basicConfig(level=self.loglevel,
                             format='%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s',
                             datefmt='%Y-%m-%d %H:%M:%S')
@@ -90,34 +95,46 @@ class ImgPage(metaclass=ABCMeta):
         with st.spinner(text="contour_points_sampling..."):
             res1 = self.post_warp(img1, img2, method='cps')
             warped_img1 = self.read_img_content(res1.content, 'rgba')
-        with st.spinner(text="contour_areas_stratification..."):
-            res2 = self.post_warp(img1, img2, method='cas')
+        with st.spinner(text="contour_areas_stratification...v1"):
+            res2 = self.post_warp(img1, img2, method='cas_v1')
             warped_img2 = self.read_img_content(res2.content, 'rgba')
+        with st.spinner(text="contour_areas_stratification...v2"):
+            res3 = self.post_warp(img1, img2, method='cas_v2')
+            warped_img3 = self.read_img_content(res3.content, 'rgba')
         st.write("Outputs: ")
-        self.display_img([warped_img1, warped_img2], ['Method: contour_points_sampling (cps)',
-                                                      'Method: contour_areas_stratification (cas)'])
+        self.display_img([warped_img1, warped_img2, warped_img3],
+                         ['Method: contour_points_sampling (cps)',
+                          'Method: contour_areas_stratification (cas_v1)',
+                          'Method: contour_areas_stratification (cas_v2)'])
         self.hide_style()
 
     def post_warp(self, img1: np.ndarray, img2: np.ndarray, method: str) -> Response:
-        return requests.post(f"http://{self.backend}/warp_imgs/{method}",
+        return requests.post(f"http://{self.core_backend}/warp_imgs/{method}",
                              files={"method": (None, method),
                                     "file1": (f"file1.png;type=image/png", self.img_to_bytes(img1)),
                                     "file2": (f"file2.png;type=image/png", self.img_to_bytes(img2)),
 
                                     }, timeout=self.timeout)
 
+    def post_stylize(self, content_img: np.ndarray, style_img: np.ndarray, steps: int) -> Response:
+        return requests.post(f"http://{self.style_backend}/style_img/{steps}",
+                             files={"steps": (None, steps),
+                                    "file_content": (
+                                    f"file_content.png;type=image/png", self.img_to_bytes(content_img)),
+                                    "file_style": (f"file_style.png;type=image/png", self.img_to_bytes(style_img)),
+
+                                    }, timeout=self.timeout)
+
 
 class TestImgPage(ImgPage):
 
-    def __init__(self, backend: str, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """
         Streamlit page with test images
-        :param backend:
         :param args:
         :param kwargs:
         """
         super().__init__(*args, **kwargs)
-        self.backend = backend
 
     def write(self) -> None:
         self.set_title()
@@ -128,19 +145,17 @@ class TestImgPage(ImgPage):
 
 class RandomImgPage(ImgPage):
 
-    def __init__(self, backend: str, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """
         Streamlit page with random images
-        :param backend:
         :param args:
         :param kwargs:
         """
         super().__init__(*args, **kwargs)
-        self.backend = backend
         self.display_width = 100
 
     def fetch_random_img(self) -> Response:
-        return requests.post(f"http://{self.backend}/fetch_random_img")
+        return requests.post(f"http://{self.core_backend}/fetch_random_img")
 
     def generate(self):
         with st.spinner(text="Parsing images from Emojipedia..."):
@@ -158,15 +173,13 @@ class RandomImgPage(ImgPage):
 
 class SelectImgPage(ImgPage):
 
-    def __init__(self, backend: str, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         """
-        Streamlit page with random images
-        :param backend:
+        Streamlit page with selected images
         :param args:
         :param kwargs:
         """
         super().__init__(*args, **kwargs)
-        self.backend = backend
         self.display_width = 100
 
     def write(self) -> None:
@@ -177,3 +190,92 @@ class SelectImgPage(ImgPage):
             img1 = np.array(Image.open(file1))
             img2 = np.array(Image.open(file2))
             self._write(img1, img2)
+
+
+class TestThreeImgPage(ImgPage):
+
+    def __init__(self, *args, **kwargs):
+        """
+        Streamlit page with 3 predefined images
+        :param args:
+        :param kwargs:
+        """
+        super().__init__(*args, **kwargs)
+        self.display_width = 100
+
+    def write(self) -> None:
+        self.set_title()
+        names = None
+
+        if st.button('Test castle-dragon-fire'):
+            names = ('castle.png', 'dragon.png', 'fire.png')
+        if st.button('Test joy-duck-pistol'):
+            names = ('joy.png', 'duck.png', 'pistol.png')
+
+        if names:
+            files = [np.array(Image.open(os.path.join(self.root, '..', 'tests', 'pics', name))) for name in names]
+            perms = permutations(files)
+
+            if perms:
+                for triple in perms:
+                    self._write(triple[0], triple[1])
+
+
+class SelectThreeImgPage(ImgPage):
+
+    def __init__(self, *args, **kwargs):
+        """
+        Streamlit page with 3 selected images
+        :param args:
+        :param kwargs:
+        """
+        super().__init__(*args, **kwargs)
+        self.display_width = 100
+
+    def write(self) -> None:
+        self.set_title()
+
+        files = [st.file_uploader(f'Image {i}...', type=["png"]) for i in range(1, 4)]
+
+        if files[0] and files[1] and files[2]:
+            files = [np.array(Image.open(f)) for f in files]
+            perms = permutations(files)
+            if perms:
+                for triple in perms:
+                    self._write(triple[0], triple[1])
+
+
+class StyleTransferPage(ImgPage):
+
+    def __init__(self, *args, **kwargs):
+        """
+        Streamlit page with 3 selected images and style transfer
+        :param args:
+        :param kwargs:
+        """
+        super().__init__(*args, **kwargs)
+        self.display_width = 100
+        self.style_steps = (50, 100, 150)
+
+    def write(self) -> None:
+        self.set_title()
+
+        files = [st.file_uploader(f'Image {i}...', type=["png"]) for i in range(1, 4)]
+
+        if files[0] and files[1] and files[2]:
+            files = [np.array(Image.open(f)) for f in files]
+            perms = permutations(files)
+            if perms:
+                for triple in perms:
+                    self._write(triple[0], triple[1])
+
+                    res_cas_v2 = self.post_warp(triple[0], triple[1], method='cas_v2')
+                    warped_img = self.read_img_content(res_cas_v2.content, 'rgba')
+
+                    to_display = []
+                    for s in self.style_steps:
+                        with st.spinner(text=f"cas_v2 + style transfer with steps: {s}..."):
+                            res_stylized = self.post_stylize(warped_img, triple[2], s)
+                            stylized_img = self.read_img_content(res_stylized.content, 'rgb')
+                            to_display.append(stylized_img)
+                    self.display_img(to_display, [f'cas_v2 + style transfer, steps: {s}' for s in self.style_steps])

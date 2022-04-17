@@ -99,9 +99,11 @@ class ImgTransformer:
         :param sample_size:
         :return:
         """
+
         mask = get_mask(img, verbose=self.verbose)
         contour = get_contour(mask)[:, 0, :]
         sampled_contour = self._sample_points(contour, sample_size)
+
         if self.verbose:
             zero_img = np.zeros(shape=img.shape[:2], dtype=img.dtype)
             cv2.drawContours(zero_img, [contour], 0, self.white_color, 1)
@@ -145,15 +147,20 @@ class ImgTransformer:
         area = ContourArea(left_area, bottom_area, right_arera, top_area)
         return area
 
-    def _extract_sampled_contour_areas(self, img: np.ndarray, sample_size: int) -> ContourArea:
+    def _extract_sampled_contour_areas(self, img: np.ndarray, sample_size: int, convex_hull: bool) -> ContourArea:
         mask = get_mask(img, verbose=self.verbose)
-        contour = get_contour(mask)
+        if convex_hull:
+            hull = cv2.convexHull(get_contour(mask))
+            mask2 = create_mask_from_hull(*img.shape[:2], hull)
+            contour = get_contour(mask2)
+        else:
+            contour = get_contour(mask)
         areas = self._split_contour_to_areas(contour)
         areas = self._sample_areas(areas, sample_size)
         return areas
 
     def contour_points_sampling(self, primary_img: np.ndarray,
-                                secondary_img: np.ndarray, sample_size: int = 100) -> np.ndarray:
+                                secondary_img: np.ndarray, sample_size: int = 100) -> tuple:
         """
         Transform image shape into a contour with following steps:
             1. Get images of the equal size
@@ -177,10 +184,10 @@ class ImgTransformer:
         logging.debug('Done contours')
         warped_img = warp_threaded(secondary_img, primary_img, contour2, contour1, self.cpu_num)
         logging.debug('Done warping')
-        return warped_img
+        return warped_img, contour1, contour2
 
     def contour_areas_stratification(self, primary_img: np.ndarray,
-                                     secondary_img: np.ndarray, sample_size: int = 100) -> np.ndarray:
+                                     secondary_img: np.ndarray, convex_hull: bool, sample_size: int = 10) -> tuple:
         """
         Transform image shape into a contour with following steps:
             1. Get images of the equal size
@@ -193,19 +200,20 @@ class ImgTransformer:
                perform affine transformations and warping to fit triangles to the primary image.
         :param primary_img:
         :param secondary_img:
+        :param convex_hull:
         :param sample_size:
         :return:
         """
         logging.debug('Running CAS')
         primary_img = cv2.resize(primary_img, secondary_img.shape[:2])
         logging.debug('Resize primary image')
-        area1 = self._extract_sampled_contour_areas(primary_img, sample_size)
-        area2 = self._extract_sampled_contour_areas(secondary_img, sample_size)
+        area1 = self._extract_sampled_contour_areas(primary_img, sample_size, convex_hull)
+        area2 = self._extract_sampled_contour_areas(secondary_img, sample_size, convex_hull)
         contour1, contour2 = self._combine_contour_areas(area1), self._combine_contour_areas(area2)
         logging.debug('Done contours')
         warped_img = warp_threaded(secondary_img, primary_img, contour2, contour1, self.cpu_num)
         logging.debug('Done warping')
-        return warped_img
+        return warped_img, contour1, contour2
 
 
 def dry_run(img_path: str, method: str = 'cps', encode: bool = False) -> np.ndarray or io.BytesIO:
@@ -251,6 +259,12 @@ def get_mask(img: np.ndarray, min_val: int = 1, max_val: int = 255, verbose: boo
     if verbose:
         show_img(threshold, 'image_threshold')
     return threshold
+
+
+def create_mask_from_hull(rows: int, cols: int, hull: np.ndarray) -> np.ndarray:
+    mask = np.zeros((rows, cols), dtype=np.uint8)
+    cv2.drawContours(mask, [hull], 0, 255, -1)
+    return mask
 
 
 def get_contour(img: np.ndarray, approx=cv2.CHAIN_APPROX_NONE) -> np.ndarray:
@@ -355,12 +369,13 @@ def warp_threaded(img1: np.ndarray, img2: np.ndarray, pts1: np.ndarray, pts2: np
     return img2
 
 
-def encode_img(img: np.ndarray) -> io.BytesIO:
+def encode_img(img: np.ndarray, format: str = "png") -> io.BytesIO:
     """
     :param img:
+    :param format:
     :return:
     """
-    is_success, buffer = cv2.imencode(".png", img)
+    is_success, buffer = cv2.imencode(f".{format}", img)
     io_buf = io.BytesIO(buffer)
     return io_buf
 
@@ -387,3 +402,10 @@ def show_img(img: np.ndarray, name: str, destroy: bool = False) -> None:
     cv2.waitKey(0)
     if destroy:
         cv2.destroyWindow(name)
+
+
+def show_points(image: np.ndarray, cnt: np.ndarray, name: str, color: tuple = (100, 100, 255)) -> None:
+    for j in range(cnt.shape[0]):
+        image = cv2.circle(image, cnt[j, :], 3, color, -1)
+        image = cv2.putText(image, str(j), cnt[j, :], cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+    show_img(image, name)

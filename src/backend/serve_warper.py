@@ -45,12 +45,14 @@ async def warp_imgs(method: str, file1: UploadFile, file2: UploadFile) -> Stream
     image_bytes2 = await file2.read()
     img1 = core.decode_img(image_bytes1)
     img2 = core.decode_img(image_bytes2)
-    method = method if method in ('cps', 'cas') else 'cas'
+    method = method if method in ('cps', 'cas_v1', 'cas_v2') else 'cas_v2'
     logging.debug('Received initial images')
     if method == 'cps':
-        warped = transformer.contour_points_sampling(primary_img=img1, secondary_img=img2)
+        warped, _, _ = transformer.contour_points_sampling(primary_img=img1, secondary_img=img2)
+    elif method == 'cas_v1':
+        warped, _, _ = transformer.contour_areas_stratification(primary_img=img1, secondary_img=img2, convex_hull=False)
     else:
-        warped = transformer.contour_areas_stratification(primary_img=img1, secondary_img=img2)
+        warped, _, _ = transformer.contour_areas_stratification(primary_img=img1, secondary_img=img2, convex_hull=True)
     logging.debug('Received warped image')
     io_buf = core.encode_img(warped)
     logging.debug('Done encoding result')

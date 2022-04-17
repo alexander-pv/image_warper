@@ -1,2 +1,8 @@
 src/tests/pics/bulb.png filter=lfs diff=lfs merge=lfs -text
 src/tests/pics/fox.png filter=lfs diff=lfs merge=lfs -text
+src/tests/pics/castle.png filter=lfs diff=lfs merge=lfs -text
+src/tests/pics/dragon.png filter=lfs diff=lfs merge=lfs -text
+src/tests/pics/duck.png filter=lfs diff=lfs merge=lfs -text
+src/tests/pics/fire.png filter=lfs diff=lfs merge=lfs -text
+src/tests/pics/joy.png filter=lfs diff=lfs merge=lfs -text
+src/tests/pics/pistol.png filter=lfs diff=lfs merge=lfs -text
